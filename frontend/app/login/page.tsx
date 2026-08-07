@@ -1,162 +1,72 @@
 "use client";
 
 import * as React from "react";
-import { WaveBackground } from "@/components/wave-background";
-import { Logo, Button, Input } from "@/components/cyber";
-import { API_URL } from "@/lib/config";
-import { Eye, EyeOff } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { API_URL } from "@/lib/config";
 
 export default function LoginPage() {
   const router = useRouter();
   const [email, setEmail] = React.useState("");
   const [password, setPassword] = React.useState("");
-  const [showPassword, setShowPassword] = React.useState(false);
   const [error, setError] = React.useState("");
   const [loading, setLoading] = React.useState(false);
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError("");
-
-    if (!email || !password) {
-      setError("Please fill in all fields.");
-      return;
-    }
-
     setLoading(true);
-
     try {
-      const backendUrl = API_URL;
-      const res = await fetch(`${backendUrl}/login`, {
+      const res = await fetch(`${API_URL}/login`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email, password }),
       });
-
       if (!res.ok) {
-        const data = await res.json();
+        const data = await res.json().catch(() => ({}));
         throw new Error(data.detail || "Invalid email or password.");
       }
-
       const data = await res.json();
-      localStorage.setItem("cyberguard-token", data.access_token);
-      localStorage.setItem(
-        "cyberguard-user",
-        JSON.stringify({
-          name: email.split("@")[0].replace(/[._]/g, " "),
-          email,
-          businessName: "My Business",
-          businessType: "Retail / Kirana Store",
-          memberSince: new Date().toISOString(),
-        })
-      );
+      localStorage.setItem("asv-token", data.access_token);
       router.push("/dashboard");
-    } catch (err: any) {
-      setError(err.message || "Invalid email or password.");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Sign-in failed. Check the API is running.");
     } finally {
       setLoading(false);
     }
-  };
+  }
 
   return (
-    <div className="relative flex min-h-screen items-center justify-center px-4">
-      <WaveBackground intensity="low" />
-
-      <div className="relative z-10 flex w-full max-w-[400px] flex-col items-center">
-        {/* Logo */}
-        <Logo size="lg" href="/" className="mb-8" />
-
-        {/* Card */}
-        <div className="w-full rounded-[20px] border border-border bg-bg-card p-9 backdrop-blur-xl shadow-[0_4px_32px_rgba(0,0,0,0.5),0_0_0_1px_rgba(0,255,65,0.04)_inset]">
-          <h1 className="font-display text-[22px] font-bold text-text-primary">
-            Welcome back
-          </h1>
-          <p className="mt-1 text-[13px] text-text-muted">
-            Sign in to your account
-          </p>
-
-          <form onSubmit={handleSubmit} className="mt-7 space-y-5">
-            {/* Email */}
-            <div>
-              <label className="mb-2 block text-xs font-medium uppercase tracking-wide text-text-muted">
-                Email
-              </label>
-              <Input
-                type="email"
-                placeholder="you@business.com"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                disabled={loading}
-              />
-            </div>
-
-            {/* Password */}
-            <div>
-              <label className="mb-2 flex items-center justify-between text-xs font-medium uppercase tracking-wide text-text-muted">
-                Password
-                <button
-                  type="button"
-                  onClick={() => setShowPassword(!showPassword)}
-                  className="text-text-muted transition-colors hover:text-text-primary"
-                  tabIndex={-1}
-                >
-                  {showPassword ? (
-                    <EyeOff className="h-4 w-4" />
-                  ) : (
-                    <Eye className="h-4 w-4" />
-                  )}
-                </button>
-              </label>
-              <Input
-                type={showPassword ? "text" : "password"}
-                placeholder="••••••••"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                disabled={loading}
-              />
-            </div>
-
-            {/* Submit */}
-            <Button
-              type="submit"
-              fullWidth
-              loading={loading}
-              loadingText="Signing in..."
-            >
-              Sign In
-            </Button>
-
-            {/* Error */}
-            {error && (
-              <p className="text-center text-[13px] text-risk-critical">
-                {error}
-              </p>
-            )}
-
-            {/* Links */}
-            <div className="flex items-center justify-between pt-1 text-[13px]">
-              <Link
-                href="/forgot-password"
-                className="text-primary transition-colors hover:text-primary-hover"
-              >
-                Forgot password?
-              </Link>
-              <Link
-                href="/register"
-                className="text-primary transition-colors hover:text-primary-hover"
-              >
-                Sign up →
-              </Link>
-            </div>
-          </form>
+    <div className="auth-wrap">
+      <div className="auth-card ticked">
+        <div className="cap">
+          <svg width="34" height="34" viewBox="0 0 30 30" fill="none" stroke="#3dff87" strokeWidth="1" aria-hidden="true">
+            <circle cx="15" cy="15" r="13" /><circle cx="15" cy="15" r="8" /><circle cx="15" cy="15" r="3" />
+            <path d="M15 2v26M2 15h26" stroke="#28331a" /><path d="M15 15L26 6" stroke="#3dff87" strokeWidth="1.4" />
+          </svg>
+          <h1>ASV</h1>
+          <div className="sub">Attack Surface · Access</div>
         </div>
-
-        {/* Tagline */}
-        <p className="mt-6 text-center text-xs italic text-text-muted">
-          &quot;Check Before You Click, Open, or Pay&quot;
-        </p>
+        <form onSubmit={handleSubmit}>
+          {error && <div className="err">» {error}</div>}
+          <div className="field">
+            <label className="f" htmlFor="email">Operator email</label>
+            <input id="email" className="inp" type="email" value={email} autoComplete="username"
+              onChange={(e) => setEmail(e.target.value)} required spellCheck={false} />
+          </div>
+          <div className="field">
+            <label className="f" htmlFor="pw">Password</label>
+            <input id="pw" className="inp" type="password" value={password} autoComplete="current-password"
+              onChange={(e) => setPassword(e.target.value)} required />
+          </div>
+          <button className="btn" type="submit" disabled={loading}
+            style={{ width: "100%", justifyContent: "center", fontSize: 12, padding: 13, marginTop: 4 }}>
+            {loading ? "Authenticating…" : "▶ Sign In"}
+          </button>
+          <div style={{ marginTop: 16, fontSize: 10.5, letterSpacing: ".08em", color: "var(--ink-faint)", textTransform: "uppercase" }}>
+            No account? <Link href="/register" style={{ color: "var(--green)" }}>Request access »</Link>
+          </div>
+        </form>
       </div>
     </div>
   );

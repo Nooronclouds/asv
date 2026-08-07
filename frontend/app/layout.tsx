@@ -1,67 +1,43 @@
 import type { Metadata, Viewport } from "next";
-import { Syne, DM_Sans } from "next/font/google";
-import { Analytics } from "@vercel/analytics/next";
+import { Anton, JetBrains_Mono } from "next/font/google";
 import { ThemeProvider } from "@/components/theme-provider";
 import "./globals.css";
 
-const syne = Syne({
+// Condensed heavy display face — the brutalist poster voice.
+const anton = Anton({
   subsets: ["latin"],
-  variable: "--font-syne",
-  weight: ["600", "700", "800"],
+  weight: "400",
+  variable: "--font-anton",
 });
 
-const dmSans = DM_Sans({
+// Technical monospace for all data, labels, and numerals.
+const jbMono = JetBrains_Mono({
   subsets: ["latin"],
-  variable: "--font-dm-sans",
-  weight: ["400", "500", "600"],
-  style: ["normal", "italic"],
+  weight: ["400", "500", "700"],
+  variable: "--font-jbmono",
 });
 
 export const metadata: Metadata = {
-  title: "Vanguard SME Security Suite — Unified Threat Scanner & Posture",
+  title: "ASV — Attack Surface Visibility",
   description:
-    "Unified security scanner checking links, scanning files, verifying email spoofing, open ports, and UPI payment fraud with explainable AI reports.",
-  generator: "v0.app",
-  icons: {
-    icon: [
-      {
-        url: "/icon-light-32x32.png",
-        media: "(prefers-color-scheme: light)",
-      },
-      {
-        url: "/icon-dark-32x32.png",
-        media: "(prefers-color-scheme: dark)",
-      },
-      {
-        url: "/icon.svg",
-        type: "image/svg+xml",
-      },
-    ],
-    apple: "/apple-icon.png",
-  },
+    "Discover, rank, and track your internet-facing attack surface. External, authorized-only reconnaissance with ranked, explainable findings.",
 };
 
 export const viewport: Viewport = {
-  themeColor: [
-    { media: "(prefers-color-scheme: dark)", color: "#050805" },
-    { media: "(prefers-color-scheme: light)", color: "#FFFFFF" },
-  ],
+  themeColor: "#0a0c06",
   width: "device-width",
   initialScale: 1,
 };
 
 export default function RootLayout({
   children,
-}: Readonly<{
-  children: React.ReactNode;
-}>) {
+}: Readonly<{ children: React.ReactNode }>) {
   return (
-    <html lang="en" className={`${syne.variable} ${dmSans.variable}`} suppressHydrationWarning>
-      <body className="font-sans antialiased bg-bg-root text-text-primary">
-        <ThemeProvider defaultTheme="dark" storageKey="cyberguard-theme">
+    <html lang="en" className={`${anton.variable} ${jbMono.variable}`} suppressHydrationWarning>
+      <body>
+        <ThemeProvider defaultTheme="dark" storageKey="asv-theme">
           {children}
         </ThemeProvider>
-        {process.env.NODE_ENV === "production" && <Analytics />}
       </body>
     </html>
   );
