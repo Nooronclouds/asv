@@ -1,0 +1,62 @@
+version: '3.8'
+
+services:
+  db:
+    image: postgres:15-alpine
+    container_name: vanguard-db
+    environment:
+      POSTGRES_USER: vanguard
+      POSTGRES_PASSWORD: vanguardpassword
+      POSTGRES_DB: vanguard_soc
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    container_name: vanguard-redis
+    ports:
+      - "6379:6379"
+    restart: unless-stopped
+
+  web:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: vanguard-api
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+    volumes:
+      - ./backend:/workspace
+    ports:
+      - "8000:8000"
+    environment:
+      - DATABASE_URL=postgresql://vanguard:vanguardpassword@db:5432/vanguard_soc
+      - REDIS_URL=redis://redis:6379/0
+      - SECRET_KEY=enterprise-grade-secret-key-change-in-production
+      - ALLOWED_ORIGINS=http://localhost:3000
+    depends_on:
+      - db
+      - redis
+    restart: unless-stopped
+
+  worker:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: vanguard-worker
+    command: celery -A app.core.celery_app worker --loglevel=info
+    volumes:
+      - ./backend:/workspace
+    environment:
+      - DATABASE_URL=postgresql://vanguard:vanguardpassword@db:5432/vanguard_soc
+      - REDIS_URL=redis://redis:6379/0
+      - SECRET_KEY=enterprise-grade-secret-key-change-in-production
+    depends_on:
+      - db
+      - redis
+    restart: unless-stopped
+
+volumes:
+  pgdata:

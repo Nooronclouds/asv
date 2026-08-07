@@ -1,0 +1,16 @@
+fastapi==0.110.0
+uvicorn==0.28.0
+sqlalchemy==2.0.28
+slowapi==0.1.9
+requests==2.31.0
+python-multipart==0.0.9
+python-dotenv==1.0.1
+python-jose==3.3.0
+passlib[bcrypt]==1.7.4
+bcrypt==4.1.2
+psycopg2-binary==2.9.9
+
+# --- Attack Surface pipeline ---
+httpx==0.27.0          # native async HTTP client (see app/attack_surface/net.py)
+dnspython==2.6.1       # async DNS resolver for discovery
+cryptography==42.0.5   # X.509 parsing for TLS cert facts in the probe stage
