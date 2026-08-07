@@ -1,107 +1,109 @@
 <div align="center">
 
-# 🛡️ Vanguard SME Security Suite
+# 🛰️ ASV — Attack Surface Visibility
 
-**A unified cybersecurity scanning and posture-monitoring platform for small and medium businesses**
+**Discover, rank, and track your internet-facing attack surface — before an attacker does.**
 
-[![Next.js](https://img.shields.io/badge/Next.js-14-000000?style=flat&logo=next.js&logoColor=white)](https://nextjs.org/)
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.110-009688?style=flat&logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com/)
-[![PostgreSQL](https://img.shields.io/badge/PostgreSQL-4169E1?style=flat&logo=postgresql&logoColor=white)](https://www.postgresql.org/)
 [![Python](https://img.shields.io/badge/Python-3.12-3776AB?style=flat&logo=python&logoColor=white)](https://www.python.org/)
-[![TypeScript](https://img.shields.io/badge/TypeScript-3178C6?style=flat&logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
-[![License](https://img.shields.io/badge/License-Unlicensed-lightgrey?style=flat)]()
+[![Next.js](https://img.shields.io/badge/Next.js-14-000000?style=flat&logo=next.js&logoColor=white)](https://nextjs.org/)
+[![httpx](https://img.shields.io/badge/httpx-async-2e7d32?style=flat)](https://www.python-httpx.org/)
+[![Tests](https://img.shields.io/badge/tests-passing-2ea44f?style=flat)]()
 
-*Personal portfolio project — not a commercial product*
+*A student/portfolio security-engineering project — for authorized scanning only.*
 
-[Overview](#project-overview) • [Features](#key-features) • [Architecture](#architecture) • [Getting Started](#getting-started) • [Roadmap](#roadmap)
+[Overview](#overview) • [What it does / doesn't](#scope-what-it-does-and-doesnt-do) • [Architecture](#architecture) • [Getting Started](#getting-started) • [API](#api-reference) • [For the team](#for-the-team)
 
 </div>
 
 ---
 
-## Project Overview
+## Overview
 
-Small and medium businesses are frequent targets of phishing, malware, network intrusion, and payment fraud, but rarely have the budget or staffing for a dedicated security operations team. Existing tools tend to be either enterprise SIEM platforms priced and built for large security teams, or single-purpose consumer tools (one antivirus, one phishing checker) that never talk to each other.
+Organizations spin up subdomains, cloud services, APIs, and staging environments
+faster than they can track them. Forgotten hosts, expired certificates, and
+misconfigured services quietly accumulate into an attack surface far larger than
+anyone realizes — and attackers find it during reconnaissance before defenders do.
 
-Vanguard SME Security Suite consolidates five common attack-surface checks — file/malware, malicious URLs, network exposure, phishing email, and UPI payment fraud — into a single authenticated dashboard, then correlates the results into one running security posture score instead of five disconnected reports. High-severity findings are automatically escalated into incidents tagged against real MITRE ATT&CK tactics and techniques.
+**ASV runs that reconnaissance against your *own* authorized assets.** You give it
+a few seed domains and the scope you're allowed to scan; it expands that into a
+ranked, explainable inventory of what's actually exposed on the internet, and
+tells you what changed since the last scan. It **observes and fingerprints — it
+never exploits.**
 
-This project was built as a portfolio/IEEE-track demonstration of full-stack security engineering — API design, authentication, threat-detection integration, and correlation logic — not as a production SOC platform.
+The pipeline:
+
+```
+seeds ─► discovery ─► probe ─► fingerprint ─► scoring ─► datastore ─► diff
+```
 
 ---
 
-## Key Features
+## Scope: what it does, and doesn't do
 
-### Core Detection
+**It does:**
+- Expand seed domains via **Certificate Transparency** (passive) and optional,
+  scope-gated **DNS brute-force** (active).
+- **Probe** discovered hosts for live HTTP(S) services and capture headers + TLS
+  certificate facts.
+- **Fingerprint** each service (tech hints, login/admin surfaces, TLS health).
+- **Rank findings** worst-first, each with a plain-language reason.
+- **Track change** between scans (new / removed / persisting) via snapshots.
 
-| Module | What it does | Backing technology |
-|---|---|---|
-| File / Malware Scan | Scans uploaded files for known malware signatures | ClamAV |
-| URL Scanner | Checks URLs against reputation/threat databases | VirusTotal API |
-| Network Scanner | Scans a target for open ports and exposed services | Nmap |
-| Email / Phishing Analyzer | Validates SPF/DKIM/DMARC, flags lookalike domains and brand impersonation | Custom heuristic engine |
-| UPI Fraud Check | Validates UPI handle format and flags known fraud patterns | Custom heuristic engine (format-level only) |
-| Attack Surface Discovery | Expands authorized seed domains into a ranked, explainable inventory of internet-visible exposures, and tracks change between scans | Async pipeline (httpx / dnspython / Certificate Transparency) — see [`backend/app/attack_surface/README.md`](backend/app/attack_surface/README.md) |
+**It does not:**
+- Exploit, brute-force credentials, or attempt to gain access.
+- Do authenticated/internal scanning — external perspective only.
+- Perform a full port sweep or non-HTTP service detection (HTTP(S) ports today).
+- Confirm CVEs with proof-of-concept — it flags *likely* exposure, not proof.
+- Scan anything outside the authorized scope. **Default-deny**: an empty scope
+  scans nothing.
 
-### Correlation & Posture
-
-| Feature | Description |
-|---|---|
-| Security Posture Score | Rolling trend score aggregated from historical scan results across all five tools |
-| IOC Correlation Engine | Links related findings across scans and auto-escalates matches into incidents |
-| MITRE ATT&CK Mapping | High-severity incidents are tagged with real ATT&CK tactic/technique IDs — verified working against live scan data |
-
-### Explainability
-
-| Feature | Description |
-|---|---|
-| Detection Signals Panel | Expandable per-result breakdown showing the specific signals behind a verdict, rather than an opaque score |
-
-### Access & Reporting
-
-| Feature | Description |
-|---|---|
-| JWT Authentication | Token-based auth on all protected routes |
-| Role-Based Access Control | Roles include SOC Analyst, Threat Hunter, Admin |
-| Rate Limiting | Per-endpoint request throttling via SlowAPI |
-| Text Incident Report Export | One-click plain-text report generation for any incident |
-
-> **Note:** This project does not currently include enterprise features (multi-tenant orgs, SSO, SIEM integrations), trained ML/AI models, or scheduled/automated scanning. See Roadmap for what is intentionally out of scope today.
+> ⚠️ **Only scan assets you are authorized to scan.** `scanme.nmap.org` is a
+> public target the Nmap project provides for exactly this kind of testing.
 
 ---
 
 ## Architecture
 
+Every stage is a pure, forward-only function passing plain dataclasses; only the
+orchestrator touches the database. Network I/O is async (`httpx` + `dnspython`)
+with a single semaphore as the global rate limiter, so scans stay polite and one
+dead host can never abort a batch.
+
 ```mermaid
-flowchart TB
-    User([User]) --> FE[Next.js Frontend]
-    FE -->|JWT Bearer Auth| API[FastAPI Backend]
+flowchart LR
+    Seeds([Authorized seeds]) --> Orch
 
-    API --> Auth[Auth and RBAC Layer]
-    API --> Routes[API Routes]
+    subgraph Orch[Orchestrator - enforces scope and rate once]
+      direction LR
+      Disc["Discovery<br/>CT + DNS"] --> Probe["Probe<br/>liveness + TLS"]
+      Probe --> FP["Fingerprint<br/>interpret facts"]
+      FP --> Score["Scoring<br/>ranked findings"]
+    end
 
-    Routes --> Scan[Scan Services]
-    Scan --> ClamAV[ClamAV Engine]
-    Scan --> VT[VirusTotal Client]
-    Scan --> Nmap[Nmap Scanner]
-    Scan --> Email[Email/Phishing Analyzer]
-    Scan --> UPI[UPI Format Checker]
-
-    Scan --> Correlation[IOC Correlation Engine]
-    Correlation --> MITRE[MITRE ATT&CK Mapper]
-    Correlation --> DB[(PostgreSQL)]
-
-    Routes --> Reports[Text Report Generator]
-    Routes --> DB
+    Orch --> DB[("Datastore<br/>asw_* snapshots")]
+    DB --> Diff["Diff<br/>run N vs N-1"]
+    Diff --> API[REST API]
+    Score --> API
+    API --> UI[Frontend / dashboard]
 ```
 
-### Request Flow
+| Component | Responsibility |
+|---|---|
+| **Scope gate** (`scope.py`) | The single authorization check. Default-deny; nothing outside authorized domains/CIDRs is ever touched. |
+| **Discovery** (`discovery.py`) | Seeds → assets. CT logs (passive) + optional DNS brute-force, auto-disabled on wildcard-DNS domains. |
+| **Probe** (`probe.py`) | Assets → live services. Rejects platform placeholder/error responses so phantom hosts don't register. |
+| **Fingerprint** (`fingerprint.py`) | Pure interpretation of raw facts — tech, login/admin surface, TLS health. |
+| **Scoring** (`scoring.py`) | Rules → findings, worst-first, de-duplicated per host. |
+| **Diff** (`diff.py`) | This run vs. the previous completed run. |
+| **Datastore** (`models.py`) | Snapshot-stamped SQLAlchemy tables (`asw_*`). |
 
-```
-User -> Frontend (Next.js) -> Backend (FastAPI, JWT-verified)
-     -> Scan Service (ClamAV / VirusTotal / Nmap / Email / UPI)
-     -> Correlation Engine -> MITRE Mapper -> PostgreSQL
-     -> Result returned to Dashboard
-```
+Full module design and internals: **[`backend/app/attack_surface/README.md`](backend/app/attack_surface/README.md)**.
+
+> **Note:** the backend also carries a broader security toolkit (file/URL/network/
+> email/UPI scanners, IOC correlation, MITRE mapping) that ASV is integrated
+> into. Those are supporting modules — the focus of this repo is Attack Surface
+> Visibility.
 
 ---
 
@@ -109,50 +111,39 @@ User -> Frontend (Next.js) -> Backend (FastAPI, JWT-verified)
 
 | Layer | Technology |
 |---|---|
-| Frontend Framework | Next.js (App Router), React, TypeScript |
-| Styling | Tailwind CSS |
-| Charts | Recharts |
-| Backend Framework | FastAPI (Python 3.12) |
-| Database | PostgreSQL via SQLAlchemy |
-| Authentication | JWT (python-jose), bcrypt |
-| Rate Limiting | SlowAPI |
-| Malware Scanning | ClamAV |
-| Threat Intelligence | VirusTotal API |
-| Network Scanning | Nmap |
-| Deployment | Not yet containerized |
-
----
-
-## Screenshots
-
-> Add real screenshots to `docs/screenshots/` before publishing. Placeholders below.
-
-| View | Image |
-|---|---|
-| Dashboard | `![Dashboard](docs/screenshots/dashboard.png)` |
-| Scan Result | `![Scan Result](docs/screenshots/scan-result.png)` |
-| Incident Report | `![Incident](docs/screenshots/incident.png)` |
+| Pipeline | Python 3.12, `asyncio`, `httpx`, `dnspython`, `cryptography` |
+| Discovery source | Certificate Transparency (crt.sh) |
+| Backend / API | FastAPI, JWT auth, SlowAPI rate limiting |
+| Datastore | SQLAlchemy (SQLite by default, PostgreSQL supported) |
+| Frontend | Next.js (App Router), React, TypeScript, Tailwind |
+| Tests | pytest (offline, deterministic) |
 
 ---
 
 ## Getting Started
 
 ### Prerequisites
-- Node.js 18+
 - Python 3.12
-- PostgreSQL 14+
+- Node.js 18+ (only if working on the frontend)
+- PostgreSQL 14+ *(optional — SQLite is the default and needs no setup)*
 
 ### 1. Clone
 
 ```bash
-git clone https://github.com/nayefsiddique-eng/vanguard-sme-suite.git
-cd vanguard-sme-suite
+git clone https://github.com/Nooronclouds/asv.git
+cd asv
 ```
 
 ### 2. Install dependencies
 
 ```bash
-npm run install:all
+npm run install:all      # installs frontend deps + backend requirements
+```
+
+Backend only:
+
+```bash
+cd backend && pip install -r requirements.txt
 ```
 
 ### 3. Configure environment
@@ -161,11 +152,11 @@ npm run install:all
 cp backend/.env.example backend/.env
 ```
 
-Then fill in `backend/.env`:
+Then set `backend/.env` (the defaults use SQLite — no database server needed):
 
 ```
-DATABASE_URL=postgresql://user:password@localhost:5432/vanguard
-SECRET_KEY=<generate with: python -c "import secrets; print(secrets.token_hex(32))">
+DATABASE_URL=sqlite:///./asv.db
+SECRET_KEY=<generate: python -c "import secrets; print(secrets.token_hex(32))">
 ```
 
 ### 4. Run
@@ -174,155 +165,133 @@ SECRET_KEY=<generate with: python -c "import secrets; print(secrets.token_hex(32
 npm run dev
 ```
 
-Frontend: `http://localhost:3000`
-Backend docs (Swagger): `http://localhost:8000/docs`
+- Frontend: `http://localhost:3000`
+- Backend + Swagger docs: `http://localhost:8000/docs`
+
+### 5. Run your first scan
+
+Authenticate (`/login`) to get a token, then:
+
+```bash
+curl -X POST http://localhost:8000/api/attack-surface/scan \
+  -H "Authorization: Bearer <token>" \
+  -H "Content-Type: application/json" \
+  -d '{"seeds":["scanme.nmap.org"],"authorized_domains":["scanme.nmap.org"],"active":false}'
+```
+
+Or drive the pipeline directly — see
+[`backend/app/attack_surface/README.md`](backend/app/attack_surface/README.md).
+
+### Run the tests
+
+```bash
+cd backend && python -m pytest tests/test_attack_surface_fixes.py -v
+```
 
 ---
 
 ## API Reference
 
-| Method | Endpoint | Description | Auth Required |
-|---|---|---|---|
-| POST | `/register` | Create a new user account | No |
-| POST | `/login` | Authenticate and receive a JWT | No |
-| POST | `/api/scan/file` | Submit a file for malware scanning | Yes |
-| POST | `/api/scan/url` | Submit a URL for reputation check | Yes |
-| POST | `/api/scan/network` | Submit a target for port/service scan | Yes |
-| POST | `/api/scan/email` | Submit email headers for phishing analysis | Yes |
-| POST | `/api/scan/upi` | Submit a UPI handle for fraud check | Yes |
-| GET | `/scan-history` | Retrieve the current users scan history | Yes |
-| GET | `/incidents` | Retrieve correlated incidents | Yes |
-| GET | `/api/reports/{incident_id}/text` | Export a text report for an incident | Yes |
-| POST | `/api/attack-surface/scan` | Run an attack-surface scan over authorized seeds | Yes |
-| GET | `/api/attack-surface/runs` | List recent scan runs | Yes |
-| GET | `/api/attack-surface/findings` | List current findings, worst-first | Yes |
+Attack-surface endpoints (all require `Authorization: Bearer <token>`):
 
-> Attack-surface request/response shapes and the full module design are
-> documented in [`backend/app/attack_surface/README.md`](backend/app/attack_surface/README.md).
+| Method | Endpoint | Description |
+|---|---|---|
+| POST | `/api/attack-surface/scan` | Run a scan over authorized seeds; returns counts, delta, and ranked findings |
+| GET | `/api/attack-surface/runs` | List recent scan runs |
+| GET | `/api/attack-surface/findings` | Current findings, worst-first |
+
+Request/response shapes are documented in
+[`backend/app/attack_surface/README.md`](backend/app/attack_surface/README.md).
+
+<details>
+<summary>Auth + supporting security-toolkit endpoints</summary>
+
+| Method | Endpoint | Description |
+|---|---|---|
+| POST | `/register`, `/login` | Account creation and JWT auth |
+| POST | `/api/scan/{file,url,network,email,upi}` | Supporting multi-vector scanners |
+| GET | `/scan-history`, `/incidents` | History and correlated incidents |
+
+</details>
 
 ---
 
-## Folder Structure
+## For the team
+
+Working on the **UI** or **upgrades**? Start here:
+
+- **UI / dashboard** → the API contract in
+  [`backend/app/attack_surface/README.md`](backend/app/attack_surface/README.md)
+  has exact request/response JSON. `first_seen == latest run` (or the scan
+  response's `delta`) gives you a "what changed" view for free. Frontend pages
+  live in `frontend/app/`, components in `frontend/components/`.
+- **Add a detection rule** → append a small function to `RULES` in
+  `backend/app/attack_surface/scoring.py`. It takes a `Fingerprint`, returns one
+  `Finding` (with a mandatory plain-language `rationale`) or `None`.
+- **Add a discovery source** → add a collector alongside `_passive_ct` in
+  `discovery.py`.
+- **Config knobs** (timeouts, concurrency, ports) → all in
+  `attack_surface/config.py`, overridable via `ASW_*` env vars.
+
+**One invariant:** in `orchestrator.run_scan`, `_load_previous_findings` must run
+*before* the upsert loop — reordering it silently breaks change detection. See
+the comment at the call site.
+
+### Folder structure
 
 ```
-vanguard-sme-suite/
+asv/
 ├── backend/
 │   ├── app/
-│   │   ├── api/            # Route handlers (scan, auth, incidents, history)
-│   │   ├── core/           # Config, security (JWT/hashing), RBAC
-│   │   ├── db/              # SQLAlchemy models and database session
-│   │   ├── schemas/         # Pydantic request/response models
-│   │   ├── services/        # Scanner integrations, correlation, MITRE mapping
-│   │   └── main.py          # FastAPI app instance
-│   ├── test_main.py
+│   │   ├── attack_surface/   # ⭐ the ASV pipeline (+ its own README)
+│   │   ├── api/              # FastAPI routes (incl. routes_attack_surface.py)
+│   │   ├── core/ db/ schemas/ services/
+│   │   └── main.py
+│   ├── tests/                # offline regression tests
 │   └── requirements.txt
-├── frontend/
-│   ├── app/                 # Next.js pages (dashboard, phishing, ransomware, upi, reports)
-│   ├── components/cyber/    # Scan result cards, risk badges, posture chart
-│   ├── hooks/ lib/           # Shared frontend utilities
-│   └── package.json
-├── docs/
-│   └── screenshots/          # Place real screenshots here
-└── package.json               # Monorepo dev/install scripts
+├── frontend/                 # Next.js dashboard
+├── docs/                     # spec + design docs
+└── package.json              # monorepo dev/install scripts
 ```
-
----
-
-## Security Modules
-
-**ClamAV File Scanner** — Purpose: detect known malware signatures. Input: uploaded file. Output: verdict + matched signature.
-
-**VirusTotal URL Scanner** — Purpose: check URLs against threat intel. Input: URL string. Output: verdict + detection ratio.
-
-**Nmap Network Scanner** — Purpose: identify open ports/services. Input: target host. Output: port list + exposure summary.
-
-**Email/Phishing Analyzer** — Purpose: detect phishing/impersonation. Input: email headers. Output: SPF/DKIM/DMARC results + flags.
-
-**UPI Fraud Checker** — Purpose: flag suspicious UPI handles. Input: UPI string. Output: format validity + capped-confidence risk verdict. Does not verify real ownership.
-
-**IOC Correlation Engine** — Purpose: link findings across scans into incidents. Input: scan results. Output: incident records with MITRE mapping.
-
----
-
-## AI & Automated Reasoning
-
-This project does not use trained machine learning models or datasets. "Explainability" refers to structured, rule-based signal surfacing, not a predictive model. This is intentional scoping.
-
----
-
-## Dashboard
-
-| Widget | What it shows |
-|---|---|
-| Security Posture Score | Rolling score trend line from scan history |
-| Recent Scans | Latest results across all five tools |
-| Incidents | Auto-correlated incidents with MITRE ATT&CK tags |
-| Detection Signals | Expandable explanation of triggering signals |
-
----
-
-## Project Highlights
-
-- Five independent detection tools unified behind one authenticated API and one posture score
-- Real, verified MITRE ATT&CK mapping confirmed producing actual tactic/technique data from live scans
-- Honest scoping: format-only UPI checks and text-only reports documented as limitations rather than glossed over
 
 ---
 
 ## Roadmap
 
-**Completed**
-- [x] JWT auth + RBAC across all protected routes
-- [x] Five scan tool integrations
-- [x] IOC correlation engine with auto-incident creation
-- [x] MITRE ATT&CK mapping (verified end-to-end)
-- [x] Security posture trend dashboard
-- [x] Explainable detection-signals panel
-- [x] Text-based incident report export
+**Done**
+- [x] End-to-end pipeline: discovery → probe → fingerprint → scoring → diff
+- [x] Passive CT discovery + scope-gated active brute-force
+- [x] TLS certificate extraction (expiry / self-signed / issuer)
+- [x] Wildcard-DNS guard, real-liveness check, per-host dedup (with regression tests)
+- [x] REST API + snapshot-based change tracking
 
-**In Progress**
-- [ ] Database migration tooling
-- [ ] Full audit log wiring for all user actions
-
-**Future**
-- [ ] Real UPI ownership verification via PSP-side API
-- [ ] PDF report export
-- [ ] Docker containerization
-- [ ] CI pipeline
-
----
-
-## Benchmarks
-
-Benchmark results will be published once formal load/accuracy testing is conducted. None are available at this time.
+**Next**
+- [ ] Frontend dashboard for runs, findings, and diffs
+- [ ] Background/async scans for large scopes (currently synchronous)
+- [ ] Scheduled recurring scans
+- [ ] Expanded discovery sources and port coverage
+- [ ] PDF/CSV export of findings
 
 ---
 
 ## Contributing
 
-This is currently a personal portfolio project and not actively seeking external contributions. Feel free to open an issue for bugs or suggestions.
-
----
+Team project — open an issue or PR. Keep pipeline stages pure and add/adjust
+tests under `backend/tests/` for any detection or discovery change.
 
 ## License
 
-No license file has been added yet. All rights reserved by default until one is chosen.
-
----
+No license file yet — all rights reserved by default until one is chosen.
 
 ## Acknowledgements
 
-- [ClamAV](https://www.clamav.net/)
-- [VirusTotal](https://www.virustotal.com/)
-- [Nmap](https://nmap.org/)
-- [MITRE ATT&CK](https://attack.mitre.org/)
-- [FastAPI](https://fastapi.tiangolo.com/), [Next.js](https://nextjs.org/), [shadcn/ui](https://ui.shadcn.com/)
-
----
+- [Nmap](https://nmap.org/) (and `scanme.nmap.org` for authorized testing)
+- [crt.sh](https://crt.sh/) Certificate Transparency search
+- [FastAPI](https://fastapi.tiangolo.com/), [httpx](https://www.python-httpx.org/), [dnspython](https://www.dnspython.org/), [Next.js](https://nextjs.org/)
 
 ## Authors
 
-1. **Mohammed Nayef Siddique** (Chair, IEEE Computer Society Student Branch | [GitHub](https://github.com/nayefsiddique-eng))
+1. **Mohammed Nayef Siddique** ([GitHub](https://github.com/nayefsiddique-eng))
 2. **Noor Laiba Maheen**
 3. **Sobiya Ayaz**
 4. **Nadira Fatima Sireen Sultana**
@@ -330,14 +299,8 @@ No license file has been added yet. All rights reserved by default until one is 
 
 ---
 
-## Support
-
-For issues or questions, please open a GitHub issue.
-
----
-
 <div align="center">
 
-*Built as part of ongoing cybersecurity and AI portfolio development.*
+*Built as part of ongoing cybersecurity engineering coursework and portfolio work.*
 
 </div>
