@@ -13,12 +13,6 @@ from app.core.config import ALLOWED_ORIGINS
 
 # Router imports
 from app.api.routes_auth import router as auth_router
-from app.api.routes_scan import router as scan_router
-from app.api.routes_history import router as history_router
-from app.api.routes_incidents import router as incidents_router
-from app.api.routes_assets import router as assets_router
-from app.api.routes_iocs import router as iocs_router
-from app.api.routes_observability import router as observability_router
 from app.api.routes_attack_surface import router as attack_surface_router
 
 # Importing the router above pulls in app.attack_surface.models, which registers
@@ -26,8 +20,8 @@ from app.api.routes_attack_surface import router as attack_surface_router
 Base.metadata.create_all(bind=engine)
 
 app = FastAPI(
-    title="Vanguard SME Security Suite API",
-    description="Backend API for Vanguard SME Security Suite, a unified multi-vector cybersecurity scanning and rolling posture assessment platform."
+    title="ASV — Attack Surface Visibility API",
+    description="Backend API for ASV: external attack-surface discovery, ranking, and change tracking over authorized seeds."
 )
 
 limiter = Limiter(key_func=get_remote_address)
@@ -49,14 +43,8 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# API Version 1 endpoints
+# API endpoints
 app.include_router(auth_router)
-app.include_router(scan_router)
-app.include_router(history_router)
-app.include_router(incidents_router)
-app.include_router(assets_router)
-app.include_router(iocs_router)
-app.include_router(observability_router)
 app.include_router(attack_surface_router)
 
 @app.middleware("http")

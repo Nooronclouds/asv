@@ -6,17 +6,11 @@ import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
 import {
   LayoutDashboard,
-  Link2,
-  Shield,
-  CreditCard,
-  FileText,
   User,
   LogOut,
-  Bell,
   Hexagon,
   Menu,
   X,
-  AlertCircle,
   Server,
 } from "lucide-react";
 
@@ -28,13 +22,7 @@ interface NavItem {
 
 const menuItems: NavItem[] = [
   { label: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
-  { label: "Incidents", href: "/incidents", icon: AlertCircle },
   { label: "Assets", href: "/assets", icon: Server },
-  { label: "Phishing", href: "/phishing", icon: Link2 },
-  { label: "Ransomware", href: "/ransomware", icon: Shield },
-  { label: "UPI Verifier", href: "/upi", icon: CreditCard },
-  { label: "Reports", href: "/reports", icon: FileText },
-  { label: "Notifications", href: "/notifications", icon: Bell },
 ];
 
 const accountItems: NavItem[] = [

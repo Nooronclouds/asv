@@ -100,10 +100,10 @@ flowchart LR
 
 Full module design and internals: **[`backend/app/attack_surface/README.md`](backend/app/attack_surface/README.md)**.
 
-> **Note:** the backend also carries a broader security toolkit (file/URL/network/
-> email/UPI scanners, IOC correlation, MITRE mapping) that ASV is integrated
-> into. Those are supporting modules — the focus of this repo is Attack Surface
-> Visibility.
+> **Note:** the backend is intentionally minimal — just JWT auth and the ASV
+> pipeline. The repo was seeded from a security-suite template; the unrelated
+> scanner modules from that template have been removed so the codebase is
+> focused solely on Attack Surface Visibility.
 
 ---
 
@@ -203,16 +203,12 @@ Attack-surface endpoints (all require `Authorization: Bearer <token>`):
 Request/response shapes are documented in
 [`backend/app/attack_surface/README.md`](backend/app/attack_surface/README.md).
 
-<details>
-<summary>Auth + supporting security-toolkit endpoints</summary>
+Auth endpoints (no token required):
 
 | Method | Endpoint | Description |
 |---|---|---|
-| POST | `/register`, `/login` | Account creation and JWT auth |
-| POST | `/api/scan/{file,url,network,email,upi}` | Supporting multi-vector scanners |
-| GET | `/scan-history`, `/incidents` | History and correlated incidents |
-
-</details>
+| POST | `/register` | Create an account |
+| POST | `/login` | Authenticate and receive a JWT |
 
 ---
 
@@ -244,12 +240,12 @@ asv/
 ├── backend/
 │   ├── app/
 │   │   ├── attack_surface/   # ⭐ the ASV pipeline (+ its own README)
-│   │   ├── api/              # FastAPI routes (incl. routes_attack_surface.py)
-│   │   ├── core/ db/ schemas/ services/
+│   │   ├── api/              # routes_auth.py + routes_attack_surface.py
+│   │   ├── core/ db/ schemas/ # config, auth, User model, request schemas
 │   │   └── main.py
 │   ├── tests/                # offline regression tests
 │   └── requirements.txt
-├── frontend/                 # Next.js dashboard
+├── frontend/                 # Next.js app (dashboard, assets, auth)
 ├── docs/                     # spec + design docs
 └── package.json              # monorepo dev/install scripts
 ```
@@ -291,11 +287,10 @@ No license file yet — all rights reserved by default until one is chosen.
 
 ## Authors
 
-1. **Mohammed Nayef Siddique** ([GitHub](https://github.com/nayefsiddique-eng))
+1. **Akash Gowda N C**
 2. **Noor Laiba Maheen**
-3. **Sobiya Ayaz**
-4. **Nadira Fatima Sireen Sultana**
-5. **Mohammed Ameen Ul Haq**
+3. **Chethan Gowda ER**
+4. **Mohammad Sakeeb**
 
 ---
 
