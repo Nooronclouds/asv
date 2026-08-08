@@ -30,3 +30,6 @@ frontend/out/
 .vscode/
 Thumbs.db
 .DS_Store
+
+# Local archives
+*.zip

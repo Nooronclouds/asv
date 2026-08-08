@@ -1,32 +1,67 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { apiStartScan } from "@/lib/asv/api";
 
 const STAGES = ["Discovery", "Probe", "Fingerprint", "Scoring"];
 
+function splitList(s: string): string[] {
+  return s.split(/[\s,]+/).map((x) => x.trim()).filter(Boolean);
+}
+
 export default function ScanPage() {
   const router = useRouter();
+  const [seeds, setSeeds] = useState("");
+  const [domains, setDomains] = useState("");
+  const [ranges, setRanges] = useState("");
   const [active, setActive] = useState(true);
-  const [authorized, setAuthorized] = useState(true);
+  const [authorized, setAuthorized] = useState(false);
   const [scanning, setScanning] = useState(false);
-  const [stage, setStage] = useState(0); // index of currently running stage
+  const [stage, setStage] = useState(0);
+  const [error, setError] = useState<string | null>(null);
+  const timer = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  function start() {
-    if (!authorized) return;
-    setScanning(true);
+  useEffect(() => () => { if (timer.current) clearInterval(timer.current); }, []);
+
+  // Backend scans are synchronous (no progress stream), so the stage bar is an
+  // in-flight indicator: it walks forward while the single request is pending.
+  function startProgress() {
     setStage(0);
     let i = 0;
-    const tick = () => {
-      i += 1;
-      if (i <= STAGES.length) {
-        setStage(i);
-        setTimeout(tick, 1300);
-      } else {
-        setTimeout(() => router.push("/findings"), 600);
-      }
-    };
-    setTimeout(tick, 1300);
+    timer.current = setInterval(() => {
+      i = Math.min(i + 1, STAGES.length - 1);
+      setStage(i);
+    }, 1600);
+  }
+  function stopProgress() {
+    if (timer.current) { clearInterval(timer.current); timer.current = null; }
+  }
+
+  async function start() {
+    setError(null);
+    const seedList = splitList(seeds);
+    const domainList = domains.trim() ? splitList(domains) : seedList;
+    if (seedList.length === 0) { setError("Enter at least one seed domain."); return; }
+    if (!authorized) { setError("Confirm you are authorized to scan this scope."); return; }
+
+    setScanning(true);
+    startProgress();
+    try {
+      await apiStartScan({
+        seeds: seedList,
+        authorized_domains: domainList,
+        authorized_ip_ranges: splitList(ranges),
+        active,
+      });
+      stopProgress();
+      setStage(STAGES.length); // all done
+      setTimeout(() => router.push("/findings"), 500);
+    } catch (e) {
+      stopProgress();
+      setScanning(false);
+      setError(e instanceof Error ? e.message : "Scan failed.");
+    }
   }
 
   return (
@@ -42,32 +77,37 @@ export default function ScanPage() {
         <div className="panel ticked">
           <div className="hd"><h3>Target Definition</h3></div>
           <div className="bd">
+            {error && <div className="err" style={{ marginBottom: 14 }}>» {error}</div>}
             <div className="field">
               <label className="f">Seed domains</label>
-              <textarea className="inp" spellCheck={false} defaultValue="northwind-labs.com" />
-              <div className="hint">Root domains to expand from. One per line.</div>
+              <textarea className="inp" spellCheck={false} value={seeds} disabled={scanning}
+                onChange={(e) => setSeeds(e.target.value)} placeholder="example.com" />
+              <div className="hint">Root domains to expand from. One per line, or comma-separated.</div>
             </div>
             <div className="field">
               <label className="f">Authorized scope — domains</label>
-              <input className="inp" defaultValue="northwind-labs.com" spellCheck={false} />
+              <input className="inp" spellCheck={false} value={domains} disabled={scanning}
+                onChange={(e) => setDomains(e.target.value)} placeholder="defaults to your seeds" />
               <div className="hint">Nothing outside this is ever contacted.</div>
             </div>
             <div className="field">
               <label className="f">Authorized scope — IP ranges <span style={{ color: "var(--ink-faint)" }}>(optional)</span></label>
-              <input className="inp" placeholder="e.g. 45.79.11.0/24" spellCheck={false} />
+              <input className="inp" spellCheck={false} value={ranges} disabled={scanning}
+                onChange={(e) => setRanges(e.target.value)} placeholder="e.g. 45.79.11.0/24" />
             </div>
 
-            <div className={`toggle ${active ? "on" : ""}`} onClick={() => setActive((v) => !v)}>
+            <div className={`toggle ${active ? "on" : ""}`} onClick={() => !scanning && setActive((v) => !v)}>
               <div className="sw" />
               <div className="t">Active discovery<small>Brute-force common subdomains (sends traffic). Auto-off on wildcard DNS.</small></div>
             </div>
 
-            <div className="authbox" onClick={() => setAuthorized((v) => !v)} style={{ marginTop: 18 }}>
+            <div className="authbox" onClick={() => !scanning && setAuthorized((v) => !v)} style={{ marginTop: 18 }}>
               <div className={`cb ${authorized ? "on" : ""}`} />
               <p>I confirm I own or am authorized to scan every domain and range in this scope.</p>
             </div>
 
-            <button className="btn" onClick={start} disabled={!authorized || scanning} style={{ width: "100%", justifyContent: "center", fontSize: 12, padding: 13 }}>
+            <button className="btn" onClick={start} disabled={scanning}
+              style={{ width: "100%", justifyContent: "center", fontSize: 12, padding: 13 }}>
               {scanning ? "Scanning…" : "▶ Start Scan"}
             </button>
           </div>
@@ -82,7 +122,7 @@ export default function ScanPage() {
               </p>
               {STAGES.map((s, i) => {
                 const cls = i < stage ? "done" : i === stage ? "run" : "";
-                const st = i < stage ? (i === 0 ? "18 hosts" : "Done") : i === stage ? "Running" : "Queued";
+                const st = i < stage ? "Done" : i === stage ? "Running" : "Queued";
                 return (
                   <div className={`stage ${cls}`} key={s}>
                     <span className="ix">{String(i + 1).padStart(2, "0")}</span>
