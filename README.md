@@ -287,8 +287,8 @@ No license file yet — all rights reserved by default until one is chosen.
 
 ## Authors
 
-1. **Akash Gowda N C**
-2. **Noor Laiba Maheen**
+1. **Noor Laiba Maheen**
+2. **Akash Gowda N C**
 3. **Chethan Gowda ER**
 4. **Mohammad Sakeeb**
 
